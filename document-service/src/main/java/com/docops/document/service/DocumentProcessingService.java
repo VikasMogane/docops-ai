@@ -7,6 +7,8 @@ import com.docops.document.repository.DocumentRepository;
 import com.docops.document.util.PdfTextExtractor;
 import com.docops.document.util.TextChunker;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import com.docops.document.workflow.DocumentStatus;
@@ -20,7 +22,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DocumentProcessingService {
 
-    private static final String STORAGE_DIR = "data/docs/";
+   // private static final String STORAGE_DIR = "data/docs/";
+	
+	@Value("${storage.base-dir}")
+    private String STORAGE_DIR;
 
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository chunkRepository;

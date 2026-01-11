@@ -22,6 +22,11 @@ spring:
 logging:
   level:
     org.flywaydb: INFO
+    
+
 
 jwt:
   secret: docops-secret-key-very-long-at-least-32-characters
+  
+storage:
+  base-dir: E:/Workspace_11012025_AI_Doc/storage/
