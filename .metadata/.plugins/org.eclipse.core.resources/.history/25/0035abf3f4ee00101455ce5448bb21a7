@@ -1,5 +1,0 @@
-package com.docops.document.entity;
-
-public class DocumentChunk {
-
-}

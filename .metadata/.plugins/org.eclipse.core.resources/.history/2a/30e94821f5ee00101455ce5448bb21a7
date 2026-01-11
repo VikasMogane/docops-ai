@@ -1,5 +1,0 @@
-package com.docops.document.repository;
-
-public class DocumentChunkRepository {
-
-}
