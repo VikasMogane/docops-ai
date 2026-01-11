@@ -1,0 +1,10 @@
+package com.docops.document.workflow;
+
+public enum DocumentStatus {
+    UPLOADED,
+    PARSING,
+    PARSED,
+    ANALYZING,
+    COMPLETED,
+    FAILED
+}

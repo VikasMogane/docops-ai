@@ -1,0 +1,23 @@
+//package com.docops.document.config;
+//
+//import org.flywaydb.core.Flyway;
+//import org.springframework.beans.factory.annotation.Autowired;
+//import org.springframework.context.annotation.Configuration;
+//
+//import jakarta.annotation.PostConstruct;
+//
+//@Configuration
+//public class FlywayRunner {
+//
+//	@Autowired
+//    private final Flyway flyway;
+//
+//    public FlywayRunner(Flyway flyway) {
+//        this.flyway = flyway;
+//    }
+//
+//    @PostConstruct
+//    public void migrate() {
+//        flyway.migrate();
+//    }
+//}

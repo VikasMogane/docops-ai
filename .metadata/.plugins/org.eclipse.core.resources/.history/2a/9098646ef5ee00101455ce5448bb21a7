@@ -1,0 +1,35 @@
+package com.docops.document.controller;
+
+import com.docops.document.entity.Document;
+import com.docops.document.security.JwtPrincipal;
+import com.docops.document.service.DocumentService;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/documents")
+public class DocumentController {
+
+    private final DocumentService service;
+
+    public DocumentController(DocumentService service) {
+        this.service = service;
+    }
+
+    @PostMapping("/upload")
+    public Document upload(@RequestParam String fileName,
+                           @RequestParam String contentType,
+                           Authentication authentication) {
+
+        JwtPrincipal principal =
+                (JwtPrincipal) authentication.getPrincipal();
+
+        return service.create(
+                principal.orgId(),
+                principal.userId(),
+                fileName,
+                contentType
+        );
+    }
+}

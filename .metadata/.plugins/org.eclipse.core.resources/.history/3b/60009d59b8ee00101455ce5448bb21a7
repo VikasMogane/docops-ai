@@ -1,0 +1,5 @@
+package com.docops.user.service;
+
+public class UserService {
+
+}

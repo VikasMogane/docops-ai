@@ -1,0 +1,5 @@
+package com.docops.user.entity;
+
+public class Role {
+
+}

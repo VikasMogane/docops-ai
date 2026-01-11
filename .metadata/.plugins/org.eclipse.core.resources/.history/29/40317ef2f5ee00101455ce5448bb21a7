@@ -1,0 +1,57 @@
+package com.docops.document.controller;
+
+import com.docops.document.entity.Document;
+import com.docops.document.security.JwtPrincipal;
+import com.docops.document.service.DocumentProcessingService;
+import com.docops.document.service.DocumentService;
+
+import java.util.List;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+@RestController
+@RequestMapping("/documents")
+public class DocumentController {
+
+    private final DocumentService service;
+    private final DocumentProcessingService processingService;
+    private final DocumentChunkRepository chunkRepository;   // ✅ ADD THIS
+
+
+    public DocumentController(DocumentService service) {
+        this.service = service;
+    }
+
+    @PostMapping("/upload")
+    public Document upload(@RequestParam String fileName,
+                           @RequestParam String contentType,
+                           Authentication authentication) {
+
+        JwtPrincipal principal =
+                (JwtPrincipal) authentication.getPrincipal();
+
+        return service.create(
+                principal.orgId(),
+                principal.userId(),
+                fileName,
+                contentType
+        );
+    }
+    
+
+    @PostMapping("/uploadFile")
+    public Document upload(
+            @RequestHeader("X-Org-Id") Long orgId,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestParam("file") MultipartFile file
+    ) {
+        return processingService.processUpload(orgId, userId, file);
+    }
+    
+    @GetMapping("/{id}/chunks")
+    public List<?> getChunks(@PathVariable Long id) {
+        return chunkRepository.findByDocumentId(id);
+    }
+}

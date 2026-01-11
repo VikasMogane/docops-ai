@@ -1,0 +1,5 @@
+package com.docops.user.security;
+
+public class SecurityConfig {
+
+}

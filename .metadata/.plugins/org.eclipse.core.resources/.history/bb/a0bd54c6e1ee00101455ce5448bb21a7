@@ -1,0 +1,33 @@
+package com.docops.document.service;
+
+import org.springframework.stereotype.Service;
+
+import com.docops.document.entity.Document;
+import com.docops.document.repository.DocumentRepository;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class DocumentService {
+
+
+private final DocumentRepository repository;
+
+
+public Document create(Long orgId, Long userId,
+String name, String type) {
+
+
+Document doc = new Document();
+doc.setOrgId(orgId);
+doc.setUploadedBy(userId);
+doc.setFileName(name);
+doc.setContentType(type);
+doc.setStatus(DocumentStatus.UPLOADED);
+doc.setCreatedAt(Instant.now());
+
+
+return repository.save(doc);
+}
+}

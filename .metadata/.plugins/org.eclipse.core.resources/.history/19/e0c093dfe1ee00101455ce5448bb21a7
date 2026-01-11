@@ -1,0 +1,49 @@
+package com.docops.document.entity;
+
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.time.Instant;
+
+
+@Entity
+@Getter @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Table(name = "documents")
+public class Document {
+
+
+@Id
+@GeneratedValue(strategy = GenerationType.IDENTITY)
+private Long id;
+
+
+private Long orgId;
+private Long uploadedBy;
+
+
+private String fileName;
+private String contentType;
+
+
+@Enumerated(EnumType.STRING)
+private DocumentStatus status;
+
+
+private Instant createdAt;
+
+public void transitionTo(DocumentStatus newStatus) {
+if (!DocumentWorkflow.canTransition(this.status, newStatus)) {
+throw new IllegalStateException(
+"Invalid transition: " + this.status + " → " + newStatus
+);
+}
+this.status = newStatus;
+}
+// getters & setters
+}

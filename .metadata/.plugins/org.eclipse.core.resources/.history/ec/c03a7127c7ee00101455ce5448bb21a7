@@ -1,0 +1,43 @@
+package com.docops.user.controller;
+
+import com.docops.user.dto.*;
+import com.docops.user.service.UserService;
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/users")
+@RequiredArgsConstructor
+public class UserController {
+
+    @Autowired
+    private final UserService userService;
+
+    
+    @PostMapping("/bootstrap")
+    public void bootstrap(@RequestBody BootstrapRequest request) {
+        userService.bootstrap(request);
+    }
+
+    @PostMapping("/login")
+    public AuthResponse login(@RequestBody LoginRequest request) {
+        String token = userService.login(request);
+        return new AuthResponse(token);
+    }
+    
+    @GetMapping("/me")
+    public Map<String, Object> me(Authentication authentication) {
+
+        UserPrincipal principal =
+                (UserPrincipal) authentication.getPrincipal();
+
+        return Map.of(
+                "userId", principal.userId(),
+                "orgId", principal.orgId(),
+                "role", principal.role()
+        );
+    }
+
+}

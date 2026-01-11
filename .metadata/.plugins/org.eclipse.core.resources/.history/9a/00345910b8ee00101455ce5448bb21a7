@@ -1,0 +1,5 @@
+package com.docops.user.repository;
+
+public class UserRepository {
+
+}
