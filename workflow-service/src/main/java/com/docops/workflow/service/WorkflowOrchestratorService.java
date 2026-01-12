@@ -15,49 +15,20 @@ public class WorkflowOrchestratorService {
     private final WorkflowStepExecutionRepository stepRepo;
     private final WorkflowDefinitionRepository workflowDefinitionRepository;
 
-    @Transactional
-    public WorkflowInstance advance(Long documentId, String event) {
+    // ================= CREATE =================
 
-        WorkflowInstance instance = instanceRepo.findByDocumentId(documentId)
-                .orElseThrow(() -> new RuntimeException("Workflow not found"));
-
-        WorkflowStep nextStep = resolveNextStep(instance.getCurrentStep(), event);
-
-        WorkflowStepExecution execution = WorkflowStepExecution.builder()
-                .workflowInstance(instance)
-                .stepName(nextStep.name())
-                .status(StepStatus.PENDING)
-                .build();
-
-        stepRepo.save(execution);
-
-        instance.setCurrentStep(nextStep.name());
-        instance.setStatus(
-                nextStep == WorkflowStep.HUMAN_REVIEW
-                        ? WorkflowStatus.WAITING
-                        : WorkflowStatus.RUNNING
-        );
-
-        return instanceRepo.save(instance);
-    }
-
-    private WorkflowStep resolveNextStep(String current, String event) {
-        if ("UPLOAD".equals(current)) return WorkflowStep.TEXT_EXTRACTION;
-        if ("TEXT_EXTRACTION".equals(current)) return WorkflowStep.AI_SUMMARY;
-        if ("AI_SUMMARY".equals(current)) return WorkflowStep.HUMAN_REVIEW;
-        if ("HUMAN_REVIEW".equals(current)) return WorkflowStep.APPROVAL;
-        if ("APPROVAL".equals(current)) return WorkflowStep.INDEXING;
-        if ("INDEXING".equals(current)) return WorkflowStep.COMPLETED;
-        throw new IllegalStateException("Invalid transition");
-    }
-    
-    
-    
-    
     @Transactional
     public WorkflowInstance createWorkflow(Long documentId) {
 
-        // Fetch workflow definition (hardcoded for v1)
+        instanceRepo.findTopByDocumentIdOrderByIdDesc(documentId)
+                .ifPresent(existing -> {
+                    if (existing.getStatus() != WorkflowStatus.COMPLETED) {
+                        throw new IllegalStateException(
+                            "Active workflow already exists for document " + documentId
+                        );
+                    }
+                });
+
         WorkflowDefinition definition = workflowDefinitionRepository
                 .findByNameAndVersion("DOCOPS_AI", "v1")
                 .orElseThrow(() -> new RuntimeException("Workflow definition not found"));
@@ -71,15 +42,81 @@ public class WorkflowOrchestratorService {
 
         WorkflowInstance saved = instanceRepo.save(instance);
 
-        WorkflowStepExecution firstStep = WorkflowStepExecution.builder()
-                .workflowInstance(saved)
-                .stepName(WorkflowStep.UPLOAD.name())
-                .status(StepStatus.SUCCESS)
-                .build();
-
-        stepRepo.save(firstStep);
+        stepRepo.save(
+                WorkflowStepExecution.builder()
+                        .workflowInstance(saved)
+                        .stepName(WorkflowStep.UPLOAD.name())
+                        .status(StepStatus.SUCCESS)
+                        .build()
+        );
 
         return saved;
     }
 
+
+    // ================= ADVANCE =================
+
+    @Transactional
+    public WorkflowInstance advance(Long documentId, String event) {
+
+    	WorkflowInstance instance = instanceRepo
+    	        .findTopByDocumentIdOrderByIdDesc(documentId)
+    	        .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        WorkflowStep current = WorkflowStep.valueOf(instance.getCurrentStep());
+
+        // 🚫 TERMINAL GUARD
+        if (current == WorkflowStep.COMPLETED) {
+            throw new IllegalStateException("Workflow already completed");
+        }
+
+        // Mark previous step SUCCESS (idempotent)
+        stepRepo.findTopByWorkflowInstanceIdOrderByIdDesc(instance.getId())
+                .ifPresent(prev -> {
+                    if (prev.getStatus() == StepStatus.PENDING) {
+                        prev.setStatus(StepStatus.SUCCESS);
+                        prev.setCompletedAt(java.time.LocalDateTime.now());
+                        stepRepo.save(prev);
+                    }
+                });
+
+        WorkflowStep next = resolveNextStep(current, event);
+
+        // Insert ONLY ONE next step
+        stepRepo.save(
+                WorkflowStepExecution.builder()
+                        .workflowInstance(instance)
+                        .stepName(next.name())
+                        .status(StepStatus.PENDING)
+                        .build()
+        );
+
+        // Update instance state
+        instance.setCurrentStep(next.name());
+
+        if (next == WorkflowStep.HUMAN_REVIEW) {
+            instance.setStatus(WorkflowStatus.WAITING);
+        } else if (next == WorkflowStep.COMPLETED) {
+            instance.setStatus(WorkflowStatus.COMPLETED);
+        } else {
+            instance.setStatus(WorkflowStatus.RUNNING);
+        }
+
+        return instanceRepo.save(instance);
+    }
+
+    // ================= TRANSITIONS =================
+
+    private WorkflowStep resolveNextStep(WorkflowStep current, String event) {
+
+        return switch (current) {
+            case UPLOAD -> WorkflowStep.TEXT_EXTRACTION;
+            case TEXT_EXTRACTION -> WorkflowStep.AI_SUMMARY;
+            case AI_SUMMARY -> WorkflowStep.HUMAN_REVIEW;
+            case HUMAN_REVIEW -> WorkflowStep.APPROVAL;
+            case APPROVAL -> WorkflowStep.INDEXING;
+            case INDEXING -> WorkflowStep.COMPLETED;
+            default -> throw new IllegalStateException("Invalid transition from " + current);
+        };
+    }
 }

@@ -1,6 +1,7 @@
 package com.docops.workflow.controller;
 
 import com.docops.workflow.dto.AdvanceWorkflowRequest;
+import com.docops.workflow.dto.WorkflowResponse;
 import com.docops.workflow.domain.entity.WorkflowInstance;
 import com.docops.workflow.service.WorkflowOrchestratorService;
 import lombok.RequiredArgsConstructor;
@@ -13,16 +14,29 @@ public class WorkflowController {
 
     private final WorkflowOrchestratorService orchestrator;
 
+   
+    
     @PostMapping("/{documentId}/advance")
-    public WorkflowInstance advance(
+    public WorkflowResponse advance(
             @PathVariable Long documentId,
             @RequestBody AdvanceWorkflowRequest request) {
-        return orchestrator.advance(documentId, request.getEvent());
+
+        WorkflowInstance instance =
+                orchestrator.advance(documentId, request.getEvent());
+
+        return new WorkflowResponse(
+                instance.getDocumentId(),
+                instance.getCurrentStep(),
+                instance.getStatus()
+        );
     }
+
     
     @PostMapping("/{documentId}")
     public WorkflowInstance create(@PathVariable Long documentId) {
         return orchestrator.createWorkflow(documentId);
     }
+    
+    
 
 }

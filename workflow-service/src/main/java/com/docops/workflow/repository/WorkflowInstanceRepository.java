@@ -6,7 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface WorkflowInstanceRepository
-        extends JpaRepository<WorkflowInstance, Long> {
+extends JpaRepository<WorkflowInstance, Long> {
 
-    Optional<WorkflowInstance> findByDocumentId(Long documentId);
+Optional<WorkflowInstance>
+findTopByDocumentIdOrderByIdDesc(Long documentId);
 }
