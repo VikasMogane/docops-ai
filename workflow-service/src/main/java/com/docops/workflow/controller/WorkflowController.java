@@ -3,6 +3,7 @@ package com.docops.workflow.controller;
 import com.docops.workflow.dto.AdvanceWorkflowRequest;
 import com.docops.workflow.dto.WorkflowResponse;
 import com.docops.workflow.domain.entity.WorkflowInstance;
+import com.docops.workflow.domain.model.StepCompletionResponse;
 import com.docops.workflow.service.WorkflowOrchestratorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -21,8 +22,8 @@ public class WorkflowController {
         return WorkflowResponse.from(instance);
     }
     @PostMapping("/{documentId}/complete")
-    public void complete(@PathVariable Long documentId) {
-        orchestrator.markStepSuccess(documentId);
+    public StepCompletionResponse complete(@PathVariable Long documentId) {
+        return orchestrator.markStepSuccess(documentId);
     }
 
     

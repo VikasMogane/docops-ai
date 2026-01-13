@@ -2,6 +2,7 @@ package com.docops.workflow.service;
 
 import com.docops.workflow.domain.entity.*;
 import com.docops.workflow.domain.enums.*;
+import com.docops.workflow.domain.model.StepCompletionResponse;
 import com.docops.workflow.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -180,7 +181,7 @@ public class WorkflowOrchestratorService {
     }
     
     @Transactional
-    public void markStepSuccess(Long documentId) {
+    public StepCompletionResponse markStepSuccess(Long documentId) {
 
         WorkflowInstance instance = instanceRepo
                 .findTopByDocumentIdOrderByIdDesc(documentId)
@@ -198,6 +199,13 @@ public class WorkflowOrchestratorService {
         step.setCompletedAt(LocalDateTime.now());
 
         stepRepo.save(step);
+        return new StepCompletionResponse(
+                documentId,
+                step.getStepName(),
+                step.getStatus(),
+                step.getCompletedAt(),
+                instance.getStatus().name()
+        );
     }
 
 }
