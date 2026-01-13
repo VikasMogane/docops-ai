@@ -14,6 +14,8 @@ public class WorkflowOrchestratorService {
     private final WorkflowInstanceRepository instanceRepo;
     private final WorkflowStepExecutionRepository stepRepo;
     private final WorkflowDefinitionRepository workflowDefinitionRepository;
+    private final WorkflowTransitionRegistry transitionRegistry;
+
 
     // ================= CREATE =================
 
@@ -80,7 +82,9 @@ public class WorkflowOrchestratorService {
                     }
                 });
 
-        WorkflowStep next = resolveNextStep(current, event);
+       // WorkflowStep next = resolveNextStep(current, event);
+        WorkflowStep next = transitionRegistry.resolveNextStep(current, event);
+
 
         // Insert ONLY ONE next step
         stepRepo.save(
