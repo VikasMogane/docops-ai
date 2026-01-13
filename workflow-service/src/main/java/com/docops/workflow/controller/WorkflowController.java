@@ -14,7 +14,17 @@ public class WorkflowController {
 
     private final WorkflowOrchestratorService orchestrator;
 
-   
+    @PostMapping("/{documentId}/retry")
+    public WorkflowResponse retry(@PathVariable Long documentId) {
+
+        WorkflowInstance instance = orchestrator.retry(documentId);
+        return WorkflowResponse.from(instance);
+    }
+    @PostMapping("/{documentId}/complete")
+    public void complete(@PathVariable Long documentId) {
+        orchestrator.markStepSuccess(documentId);
+    }
+
     
     @PostMapping("/{documentId}/advance")
     public WorkflowResponse advance(

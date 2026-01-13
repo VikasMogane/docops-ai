@@ -19,18 +19,24 @@ public class WorkflowStepExecution {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "workflow_instance_id")
+    @JoinColumn(name = "workflow_instance_id", nullable = false)
     private WorkflowInstance workflowInstance;
 
+    @Column(nullable = false)
     private String stepName;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private StepStatus status;
 
-    @Column(nullable = false, updatable = false, insertable = false)
+   // @Column(nullable = false, updatable = false, insertable = false)
     private LocalDateTime startedAt;
     
     private LocalDateTime completedAt;
 
     private String errorMessage;
+    
+    @Column(nullable = false)
+    private int retryCount;
+
 }

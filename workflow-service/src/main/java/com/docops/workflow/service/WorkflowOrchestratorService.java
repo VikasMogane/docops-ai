@@ -7,15 +7,18 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 public class WorkflowOrchestratorService {
+
+    private static final int MAX_RETRIES = 3;
 
     private final WorkflowInstanceRepository instanceRepo;
     private final WorkflowStepExecutionRepository stepRepo;
     private final WorkflowDefinitionRepository workflowDefinitionRepository;
     private final WorkflowTransitionRegistry transitionRegistry;
-
 
     // ================= CREATE =================
 
@@ -26,7 +29,7 @@ public class WorkflowOrchestratorService {
                 .ifPresent(existing -> {
                     if (existing.getStatus() != WorkflowStatus.COMPLETED) {
                         throw new IllegalStateException(
-                            "Active workflow already exists for document " + documentId
+                                "Active workflow already exists for document " + documentId
                         );
                     }
                 });
@@ -44,26 +47,29 @@ public class WorkflowOrchestratorService {
 
         WorkflowInstance saved = instanceRepo.save(instance);
 
+        // Initial step is already SUCCESS
         stepRepo.save(
                 WorkflowStepExecution.builder()
                         .workflowInstance(saved)
                         .stepName(WorkflowStep.UPLOAD.name())
                         .status(StepStatus.SUCCESS)
+                        .retryCount(0)
+                        .startedAt(LocalDateTime.now())
+                        .completedAt(LocalDateTime.now())
                         .build()
         );
 
         return saved;
     }
 
-
     // ================= ADVANCE =================
 
     @Transactional
     public WorkflowInstance advance(Long documentId, String event) {
 
-    	WorkflowInstance instance = instanceRepo
-    	        .findTopByDocumentIdOrderByIdDesc(documentId)
-    	        .orElseThrow(() -> new RuntimeException("Workflow not found"));
+        WorkflowInstance instance = instanceRepo
+                .findTopByDocumentIdOrderByIdDesc(documentId)
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
 
         WorkflowStep current = WorkflowStep.valueOf(instance.getCurrentStep());
 
@@ -72,30 +78,35 @@ public class WorkflowOrchestratorService {
             throw new IllegalStateException("Workflow already completed");
         }
 
-        // Mark previous step SUCCESS (idempotent)
-        stepRepo.findTopByWorkflowInstanceIdOrderByIdDesc(instance.getId())
-                .ifPresent(prev -> {
-                    if (prev.getStatus() == StepStatus.PENDING) {
-                        prev.setStatus(StepStatus.SUCCESS);
-                        prev.setCompletedAt(java.time.LocalDateTime.now());
-                        stepRepo.save(prev);
-                    }
-                });
+        // 🔒 Phase-4 rule:
+        // You can advance ONLY if last step is SUCCESS
+        WorkflowStepExecution lastStep = stepRepo
+                .findTopByWorkflowInstanceIdOrderByIdDesc(instance.getId())
+                .orElseThrow(() -> new IllegalStateException("No step found"));
 
-       // WorkflowStep next = resolveNextStep(current, event);
+        if (lastStep.getStatus() != StepStatus.SUCCESS) {
+            throw new IllegalStateException(
+                    "Cannot advance workflow. Step "
+                            + lastStep.getStepName()
+                            + " is not SUCCESS"
+            );
+        }
+
+        // Resolve next step via rule engine
         WorkflowStep next = transitionRegistry.resolveNextStep(current, event);
 
-
-        // Insert ONLY ONE next step
+        // Insert next step as RUNNING
         stepRepo.save(
                 WorkflowStepExecution.builder()
                         .workflowInstance(instance)
                         .stepName(next.name())
-                        .status(StepStatus.PENDING)
+                        .status(StepStatus.RUNNING)
+                        .retryCount(0)
+                        .startedAt(LocalDateTime.now())
                         .build()
         );
 
-        // Update instance state
+        // Update workflow instance
         instance.setCurrentStep(next.name());
 
         if (next == WorkflowStep.HUMAN_REVIEW) {
@@ -109,18 +120,84 @@ public class WorkflowOrchestratorService {
         return instanceRepo.save(instance);
     }
 
-    // ================= TRANSITIONS =================
+    // ================= FAIL STEP =================
 
-    private WorkflowStep resolveNextStep(WorkflowStep current, String event) {
+    @Transactional
+    public void markStepFailed(Long documentId, String error) {
 
-        return switch (current) {
-            case UPLOAD -> WorkflowStep.TEXT_EXTRACTION;
-            case TEXT_EXTRACTION -> WorkflowStep.AI_SUMMARY;
-            case AI_SUMMARY -> WorkflowStep.HUMAN_REVIEW;
-            case HUMAN_REVIEW -> WorkflowStep.APPROVAL;
-            case APPROVAL -> WorkflowStep.INDEXING;
-            case INDEXING -> WorkflowStep.COMPLETED;
-            default -> throw new IllegalStateException("Invalid transition from " + current);
-        };
+        WorkflowInstance instance = instanceRepo
+                .findTopByDocumentIdOrderByIdDesc(documentId)
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        WorkflowStepExecution step = stepRepo
+                .findTopByWorkflowInstanceIdOrderByIdDesc(instance.getId())
+                .orElseThrow(() -> new RuntimeException("No step found"));
+
+        if (step.getStatus() != StepStatus.RUNNING) {
+            throw new IllegalStateException(
+                    "Only RUNNING step can be marked FAILED"
+            );
+        }
+
+        step.setStatus(StepStatus.FAILED);
+        step.setErrorMessage(error);
+        step.setCompletedAt(LocalDateTime.now());
+        step.setRetryCount(step.getRetryCount() + 1);
+
+        stepRepo.save(step);
+
+        instance.setStatus(WorkflowStatus.FAILED);
+        instanceRepo.save(instance);
     }
+
+    // ================= RETRY =================
+
+    @Transactional
+    public WorkflowInstance retry(Long documentId) {
+
+        WorkflowInstance instance = instanceRepo
+                .findTopByDocumentIdOrderByIdDesc(documentId)
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        WorkflowStepExecution failedStep = stepRepo
+                .findTopByWorkflowInstanceIdAndStatusOrderByIdDesc(
+                        instance.getId(), StepStatus.FAILED)
+                .orElseThrow(() -> new RuntimeException("No failed step to retry"));
+
+        if (failedStep.getRetryCount() >= MAX_RETRIES) {
+            throw new IllegalStateException("Retry limit exceeded");
+        }
+
+        // Reset step for retry
+        failedStep.setStatus(StepStatus.RUNNING);
+        failedStep.setErrorMessage(null);
+        failedStep.setStartedAt(LocalDateTime.now());
+
+        stepRepo.save(failedStep);
+
+        instance.setStatus(WorkflowStatus.RUNNING);
+        return instanceRepo.save(instance);
+    }
+    
+    @Transactional
+    public void markStepSuccess(Long documentId) {
+
+        WorkflowInstance instance = instanceRepo
+                .findTopByDocumentIdOrderByIdDesc(documentId)
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        WorkflowStepExecution step = stepRepo
+                .findTopByWorkflowInstanceIdOrderByIdDesc(instance.getId())
+                .orElseThrow(() -> new RuntimeException("No step found"));
+
+        if (step.getStatus() != StepStatus.RUNNING) {
+            throw new IllegalStateException("Only RUNNING step can be completed");
+        }
+
+        step.setStatus(StepStatus.SUCCESS);
+        step.setCompletedAt(LocalDateTime.now());
+
+        stepRepo.save(step);
+    }
+
 }

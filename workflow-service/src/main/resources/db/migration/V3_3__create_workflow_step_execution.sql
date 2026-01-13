@@ -5,7 +5,7 @@ CREATE TABLE workflow_step_execution (
     status VARCHAR(20) NOT NULL, -- PENDING, RUNNING, SUCCESS, FAILED
     started_at TIMESTAMP NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMP,
-    error_message TEXT,
+    error_message TEXT
 
     CONSTRAINT fk_workflow_instance
         FOREIGN KEY (workflow_instance_id)
