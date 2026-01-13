@@ -3,12 +3,14 @@ package com.docops.workflow.service;
 import com.docops.workflow.domain.entity.*;
 import com.docops.workflow.domain.enums.*;
 import com.docops.workflow.domain.model.StepCompletionResponse;
+import com.docops.workflow.dto.WorkflowViewResponse;
 import com.docops.workflow.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -205,6 +207,34 @@ public class WorkflowOrchestratorService {
                 step.getStatus(),
                 step.getCompletedAt(),
                 instance.getStatus().name()
+        );
+    }
+    
+    @Transactional(readOnly = true)
+    public WorkflowViewResponse getWorkflow(Long documentId) {
+
+        WorkflowInstance instance = instanceRepo
+                .findTopByDocumentIdOrderByIdDesc(documentId)
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        List<WorkflowViewResponse.StepView> steps =
+                stepRepo.findTopByWorkflowInstanceIdOrderByIdDesc(instance.getId())
+                        .stream()
+                        .map(s -> new WorkflowViewResponse.StepView(
+                                s.getStepName(),
+                                s.getStatus().name(),
+                                s.getStartedAt(),
+                                s.getCompletedAt(),
+                                s.getRetryCount(),
+                                s.getErrorMessage()
+                        ))
+                        .toList();
+
+        return new WorkflowViewResponse(
+                documentId,
+                instance.getCurrentStep(),
+                instance.getStatus().name(),
+                steps
         );
     }
 

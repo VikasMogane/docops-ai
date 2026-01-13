@@ -2,6 +2,7 @@ package com.docops.workflow.controller;
 
 import com.docops.workflow.dto.AdvanceWorkflowRequest;
 import com.docops.workflow.dto.WorkflowResponse;
+import com.docops.workflow.dto.WorkflowViewResponse;
 import com.docops.workflow.domain.entity.WorkflowInstance;
 import com.docops.workflow.domain.model.StepCompletionResponse;
 import com.docops.workflow.service.WorkflowOrchestratorService;
@@ -41,8 +42,14 @@ public class WorkflowController {
                 instance.getStatus()
         );
     }
-
     
+    // Get Request
+    @GetMapping("/{documentId}")
+    public WorkflowViewResponse get(@PathVariable Long documentId) {
+        return orchestrator.getWorkflow(documentId);
+    }
+    
+   // Post Request
     @PostMapping("/{documentId}")
     public WorkflowInstance create(@PathVariable Long documentId) {
         return orchestrator.createWorkflow(documentId);
