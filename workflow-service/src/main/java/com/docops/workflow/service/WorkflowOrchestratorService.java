@@ -4,6 +4,7 @@ import com.docops.workflow.domain.entity.*;
 import com.docops.workflow.domain.enums.*;
 import com.docops.workflow.domain.model.StepCompletionResponse;
 import com.docops.workflow.dto.WorkflowViewResponse;
+import com.docops.workflow.messaging.WorkflowEventPublisher;
 import com.docops.workflow.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,8 @@ public class WorkflowOrchestratorService {
     private final WorkflowStepExecutionRepository stepRepo;
     private final WorkflowDefinitionRepository workflowDefinitionRepository;
     private final WorkflowTransitionRegistry transitionRegistry;
+    private final WorkflowEventPublisher eventPublisher;
+
 
     // ================= CREATE =================
 
@@ -107,6 +110,13 @@ public class WorkflowOrchestratorService {
                         .retryCount(0)
                         .startedAt(LocalDateTime.now())
                         .build()
+        );
+        
+        eventPublisher.publishStepReady(
+                instance.getDocumentId(),
+                instance.getId(),
+                next.name(),
+                0
         );
 
         // Update workflow instance
