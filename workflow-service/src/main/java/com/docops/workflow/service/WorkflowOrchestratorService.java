@@ -189,7 +189,18 @@ public class WorkflowOrchestratorService {
         stepRepo.save(failedStep);
 
         instance.setStatus(WorkflowStatus.RUNNING);
-        return instanceRepo.save(instance);
+        instanceRepo.save(instance);
+        
+     // 🔥 THIS IS THE KEY LINE
+        eventPublisher.publishStepReady(
+                instance.getDocumentId(),
+                instance.getId(),
+                failedStep.getStepName(),
+                failedStep.getRetryCount()
+        );
+
+        return instance;
+       // return instanceRepo.save(instance);
     }
     
     @Transactional
