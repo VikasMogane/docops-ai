@@ -27,7 +27,13 @@ public class WorkflowController {
         return orchestrator.markStepSuccess(documentId);
     }
 
-    
+    @PostMapping("/{documentId}/fail")
+    public void fail(
+            @PathVariable Long documentId,
+            @RequestParam String errorMessage) {
+
+        orchestrator.markStepFailed(documentId, errorMessage);
+    }
     @PostMapping("/{documentId}/advance")
     public WorkflowResponse advance(
             @PathVariable Long documentId,

@@ -22,3 +22,6 @@ spring:
     enabled: true
     schemas: workflow
     table: workflow_flyway_history
+    
+  workflow:
+  base-url: http://localhost:${server.port}  
