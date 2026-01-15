@@ -10,14 +10,20 @@ import com.docops.workflow.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.List;
+import io.micrometer.core.instrument.Timer;
+import com.docops.workflow.metrics.WorkflowMetrics;
+import com.docops.workflow.metrics.StepMetrics;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @RequiredArgsConstructor
 public class WorkflowOrchestratorService {
 
+	private static final Logger log = LoggerFactory.getLogger(WorkflowOrchestratorService.class);
+	
     private static final int MAX_RETRIES = 3;
 
     private final WorkflowInstanceRepository instanceRepo;
@@ -26,13 +32,17 @@ public class WorkflowOrchestratorService {
     private final WorkflowTransitionRegistry transitionRegistry;
     private final WorkflowEventPublisher eventPublisher;
     private final DlqPublisher dlqPublisher;
+    private final WorkflowMetrics workflowMetrics;
+    private final StepMetrics stepMetrics;
 
 
     // ================= CREATE =================
 
     @Transactional
     public WorkflowInstance createWorkflow(Long documentId) {
-
+    	workflowMetrics.workflowStarted();
+        log.info("Workflow created", "documentId={}", documentId);
+    	
         instanceRepo.findTopByDocumentIdOrderByIdDesc(documentId)
                 .ifPresent(existing -> {
                     if (existing.getStatus() != WorkflowStatus.COMPLETED) {
@@ -103,6 +113,11 @@ public class WorkflowOrchestratorService {
         // Resolve next step via rule engine
         WorkflowStep next = transitionRegistry.resolveNextStep(current, event);
 
+        Timer.Sample stepTimer =
+                stepMetrics.stepStarted(next.name());
+
+        log.info("Step started",  "documentId={}",  instance.getDocumentId(),"workflowInstanceId={}", instance.getId(), "step={}", next.name());
+        
         // Insert next step as RUNNING
         stepRepo.save(
                 WorkflowStepExecution.builder()
@@ -126,6 +141,10 @@ public class WorkflowOrchestratorService {
 
         if (next == WorkflowStep.HUMAN_REVIEW) {
             instance.setStatus(WorkflowStatus.WAITING);
+            
+            stepMetrics.stepWaiting(next.name());
+            log.info("Workflow waiting for human action","documentId={}", instance.getDocumentId(), "step={}", next.name());
+            
         } else if (next == WorkflowStep.COMPLETED) {
             instance.setStatus(WorkflowStatus.COMPLETED);
         } else {
@@ -140,6 +159,7 @@ public class WorkflowOrchestratorService {
     @Transactional
     public void markStepFailed(Long documentId, String error) {
 
+    	
         WorkflowInstance instance = instanceRepo
                 .findTopByDocumentIdOrderByIdDesc(documentId)
                 .orElseThrow(() -> new RuntimeException("Workflow not found"));
@@ -147,6 +167,9 @@ public class WorkflowOrchestratorService {
         WorkflowStepExecution step = stepRepo
                 .findTopByWorkflowInstanceIdOrderByIdDesc(instance.getId())
                 .orElseThrow(() -> new RuntimeException("No step found"));
+        
+    	Timer.Sample stepTimer =stepMetrics.stepStarted(step.getStepName());
+
 
         if (step.getStatus() != StepStatus.RUNNING) {
             throw new IllegalStateException(
@@ -164,8 +187,20 @@ public class WorkflowOrchestratorService {
         instance.setStatus(WorkflowStatus.FAILED);
         instanceRepo.save(instance);
         
+        stepMetrics.stepFailed(step.getStepName(), stepTimer);
+        stepMetrics.stepRetried(step.getStepName());
+
+        log.error("Step failed","documentId={}", documentId,"step={}", step.getStepName(), "retryCount={}", step.getRetryCount(), "error={}", error);
+        
         // 🔥 FINAL FAILURE → DLQ
         if (step.getRetryCount() >= MAX_RETRIES) {
+        	
+        	workflowMetrics.workflowFailed();
+            stepMetrics.stepFailed(step.getStepName(), stepTimer);
+
+            log.error("Step moved to DLQ",  "documentId={}", documentId,"step={}", step.getStepName(), "retryCount={}", step.getRetryCount());
+
+            
             dlqPublisher.publish(step);
         }
     }
@@ -212,7 +247,7 @@ public class WorkflowOrchestratorService {
     
     @Transactional
     public StepCompletionResponse markStepSuccess(Long documentId) {
-
+    	
         WorkflowInstance instance = instanceRepo
                 .findTopByDocumentIdOrderByIdDesc(documentId)
                 .orElseThrow(() -> new RuntimeException("Workflow not found"));
@@ -220,6 +255,9 @@ public class WorkflowOrchestratorService {
         WorkflowStepExecution step = stepRepo
                 .findTopByWorkflowInstanceIdOrderByIdDesc(instance.getId())
                 .orElseThrow(() -> new RuntimeException("No step found"));
+        
+    	Timer.Sample stepTimer = stepMetrics.stepStarted(step.getStepName());
+
 
         if (step.getStatus() != StepStatus.RUNNING) {
             throw new IllegalStateException("Only RUNNING step can be completed");
@@ -229,6 +267,10 @@ public class WorkflowOrchestratorService {
         step.setCompletedAt(LocalDateTime.now());
 
         stepRepo.save(step);
+        
+        stepMetrics.stepSucceeded(step.getStepName(), stepTimer);
+        log.info("Step succeeded",      "documentId={}", documentId,   "step={}", step.getStepName());
+        
         return new StepCompletionResponse(
                 documentId,
                 step.getStepName(),

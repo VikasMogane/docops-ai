@@ -23,5 +23,17 @@ spring:
     schemas: workflow
     table: workflow_flyway_history
     
-  workflow:
-  base-url: http://localhost:${server.port}  
+#  workflow:
+ # base-url: http://localhost:${server.port}  
+  
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus,health,metrics
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: workflow-service
