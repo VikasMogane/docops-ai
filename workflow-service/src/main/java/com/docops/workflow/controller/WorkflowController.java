@@ -49,6 +49,14 @@ public class WorkflowController {
         );
     }
     
+    @GetMapping("/{documentId}/can-execute/{step}")
+    public boolean canExecute(
+            @PathVariable Long documentId,
+            @PathVariable String step) {
+
+        return orchestrator.isStepRunnable(documentId, step);
+    }
+    
     // Get Request
     @GetMapping("/{documentId}")
     public WorkflowViewResponse get(@PathVariable Long documentId) {

@@ -38,4 +38,12 @@ public class WorkflowCommandClient {
                 Void.class
         );
     }
+    
+    public boolean canExecute(Long documentId, String step) {
+        return restTemplate.getForObject(
+                BASE_URL + "/" + documentId + "/can-execute/" + step,
+                Boolean.class
+        );
+    }
+    
 }

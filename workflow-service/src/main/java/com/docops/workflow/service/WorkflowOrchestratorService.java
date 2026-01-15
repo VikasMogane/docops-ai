@@ -4,6 +4,7 @@ import com.docops.workflow.domain.entity.*;
 import com.docops.workflow.domain.enums.*;
 import com.docops.workflow.domain.model.StepCompletionResponse;
 import com.docops.workflow.dto.WorkflowViewResponse;
+import com.docops.workflow.kafka.DlqPublisher;
 import com.docops.workflow.messaging.WorkflowEventPublisher;
 import com.docops.workflow.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class WorkflowOrchestratorService {
     private final WorkflowDefinitionRepository workflowDefinitionRepository;
     private final WorkflowTransitionRegistry transitionRegistry;
     private final WorkflowEventPublisher eventPublisher;
+    private final DlqPublisher dlqPublisher;
 
 
     // ================= CREATE =================
@@ -161,6 +163,11 @@ public class WorkflowOrchestratorService {
 
         instance.setStatus(WorkflowStatus.FAILED);
         instanceRepo.save(instance);
+        
+        // 🔥 FINAL FAILURE → DLQ
+        if (step.getRetryCount() >= MAX_RETRIES) {
+            dlqPublisher.publish(step);
+        }
     }
 
     // ================= RETRY =================
@@ -257,6 +264,21 @@ public class WorkflowOrchestratorService {
                 instance.getStatus().name(),
                 steps
         );
+    }
+    
+    @Transactional(readOnly = true)
+    public boolean isStepRunnable(Long documentId, String stepName) {
+
+        WorkflowInstance instance = instanceRepo
+                .findTopByDocumentIdOrderByIdDesc(documentId)
+                .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        WorkflowStepExecution step = stepRepo
+                .findTopByWorkflowInstanceIdOrderByIdDesc(instance.getId())
+                .orElseThrow(() -> new RuntimeException("No step found"));
+
+        return step.getStepName().equals(stepName)
+                && step.getStatus() == StepStatus.RUNNING;
     }
 
 }

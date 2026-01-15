@@ -49,6 +49,14 @@ public class WorkflowWorker {
 
     private void simulateWork(WorkflowStep step, int retryCount)
             throws InterruptedException {
+    	
+    	  if (retryCount > 3) {
+    	        throw new RuntimeException("Retry limit exceeded");
+    	    }
+
+    	    long backoff = (long) Math.pow(2, retryCount) * 1000;
+    	    Thread.sleep(backoff);
+
 
         switch (step) {
             case TEXT_EXTRACTION -> Thread.sleep(2000);

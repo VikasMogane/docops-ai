@@ -3,17 +3,30 @@ package com.docops.worker.listener;
 import com.docops.worker.client.WorkflowCommandClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
+
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
+//@AllArgsConstructor
+//@NoArgsConstructor
 public class StepReadyListener {
 
     private final WorkflowCommandClient client;
     private final ObjectMapper mapper = new ObjectMapper();
+    
+    private final KafkaTemplate<String, String> kafkaTemplate;
 
-    public StepReadyListener(WorkflowCommandClient client) {
+    public StepReadyListener(
+            WorkflowCommandClient client,
+            KafkaTemplate<String, String> kafkaTemplate
+    ) {
         this.client = client;
+        this.kafkaTemplate = kafkaTemplate;
     }
 
     @KafkaListener(
@@ -29,7 +42,16 @@ public class StepReadyListener {
         int retryCount = event.get("retryCount").asInt();
 
         System.out.println("⚙️ Worker executing step " + step + " for doc " + documentId);
+        
+        // ✅ IDEMPOTENCY CHECK
+        boolean canExecute = client.canExecute(documentId, step);
 
+        if (!canExecute) {
+            System.out.println("⏭ Skipping step (not RUNNING anymore): " + step);
+            return;
+        }
+
+        // ✅ HUMAN-IN-LOOP GUARD
         if ("HUMAN_REVIEW".equals(step)) {
             System.out.println("⏸ HUMAN_REVIEW — waiting for human");
             return;
@@ -49,11 +71,29 @@ public class StepReadyListener {
             System.out.println("❌ Step failed: " + ex.getMessage());
 
             client.fail(documentId, ex.getMessage());
+            
+           /* if (retryCount >= 3) {
+                kafkaTemplate.send(
+                    "workflow.step.dlq",
+                    documentId.toString(),
+                    message
+                );
+                System.out.println("☠️ Sent to DLQ: " + message);
+                return;
+            }  */
+
         }
     }
 
     private void simulateWork(String step, int retryCount) throws InterruptedException {
 
+    	if (retryCount > 3) {
+            throw new RuntimeException("Retry limit exceeded");
+        }
+
+        long backoff = (long) Math.pow(2, retryCount) * 1000;
+        Thread.sleep(backoff);
+        
         switch (step) {
 
             case "TEXT_EXTRACTION" -> Thread.sleep(2000);

@@ -34,4 +34,13 @@ public class WorkflowCommandClient {
                 Void.class
         );
     }
+    
+    // ✅ ADD THIS METHOD (IDEMPOTENCY CHECK)
+    public boolean canExecute(Long documentId, String step) {
+        Boolean result = restTemplate.getForObject(
+                BASE_URL + "/" + documentId + "/can-execute/" + step,
+                Boolean.class
+        );
+        return Boolean.TRUE.equals(result);
+    }
 }
