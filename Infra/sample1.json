@@ -1,0 +1,62 @@
+{
+  "title": "DocOps AI — Workflow Observability",
+  "timezone": "browser",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Workflows Started",
+      "targets": [{
+        "expr": "workflow_started_total",
+        "refId": "A"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Waiting for Human Review",
+      "targets": [{
+        "expr": "workflow_waiting",
+        "refId": "B"
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Step Execution Count",
+      "targets": [{
+        "expr": "workflow_step_started_total",
+        "refId": "C"
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Step Success Count",
+      "targets": [{
+        "expr": "workflow_step_success_total",
+        "refId": "D"
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Step Duration (p95)",
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum(rate(workflow_step_duration_seconds_bucket[5m])) by (le, step))",
+        "refId": "E"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Total Retries",
+      "targets": [{
+        "expr": "workflow_step_retry_total",
+        "refId": "F"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "DLQ Count",
+      "targets": [{
+        "expr": "workflow_dlq_total",
+        "refId": "G"
+      }]
+    }
+  ]
+}

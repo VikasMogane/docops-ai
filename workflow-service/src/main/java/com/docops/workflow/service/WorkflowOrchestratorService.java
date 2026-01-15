@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import io.micrometer.core.instrument.Timer;
 import com.docops.workflow.metrics.WorkflowMetrics;
+import com.docops.workflow.metrics.FailureMetrics;
 import com.docops.workflow.metrics.StepMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +35,8 @@ public class WorkflowOrchestratorService {
     private final DlqPublisher dlqPublisher;
     private final WorkflowMetrics workflowMetrics;
     private final StepMetrics stepMetrics;
+    private final FailureMetrics failureMetrics;
+
 
 
     // ================= CREATE =================
@@ -191,17 +194,19 @@ public class WorkflowOrchestratorService {
         stepMetrics.stepRetried(step.getStepName());
 
         log.error("Step failed","documentId={}", documentId,"step={}", step.getStepName(), "retryCount={}", step.getRetryCount(), "error={}", error);
-        
+        // 🔥 ADD THIS
+        failureMetrics.incrementRetry();   // or failureMetrics.incrementRetry()
         // 🔥 FINAL FAILURE → DLQ
         if (step.getRetryCount() >= MAX_RETRIES) {
         	
         	workflowMetrics.workflowFailed();
+        	
             stepMetrics.stepFailed(step.getStepName(), stepTimer);
-
             log.error("Step moved to DLQ",  "documentId={}", documentId,"step={}", step.getStepName(), "retryCount={}", step.getRetryCount());
-
-            
             dlqPublisher.publish(step);
+            
+         // 🔥 ADD THIS
+            failureMetrics.incrementDlq();
         }
     }
 
