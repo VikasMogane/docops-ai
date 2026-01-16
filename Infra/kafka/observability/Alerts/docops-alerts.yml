@@ -1,0 +1,65 @@
+groups:
+  - name: docops-workflow-alerts
+    rules:
+
+      # 1️⃣ Workflow failures
+      - alert: WorkflowFailuresDetected
+        expr: increase(workflow_failed_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: workflow-service
+        annotations:
+          summary: "Workflow failures detected"
+          description: "One or more workflows failed in the last 5 minutes."
+
+      # 2️⃣ Workflow retries spike
+      - alert: WorkflowRetriesHigh
+        expr: increase(workflow_step_retry_total[5m]) >= 3
+        for: 2m
+        labels:
+          severity: warning
+          service: workflow-service
+        annotations:
+          summary: "High workflow retry rate"
+          description: "Multiple workflow step retries detected."
+
+      # 3️⃣ DLQ activity (VERY IMPORTANT)
+      - alert: WorkflowDLQTriggered
+        expr: increase(workflow_dlq_total[5m]) > 0
+        for: 30s
+        labels:
+          severity: critical
+          service: workflow-service
+        annotations:
+          summary: "Workflow sent to DLQ"
+          description: "One or more workflow steps moved to DLQ."
+
+      # 4️⃣ Workflow step latency p95 breach
+      - alert: WorkflowStepLatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(workflow_step_duration_seconds_bucket[5m])
+            )
+          ) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: workflow-service
+        annotations:
+          summary: "Workflow step latency high"
+          description: "95th percentile step latency exceeded 10 seconds."
+
+      # 5️⃣ No workflows progressing (stuck system)
+      - alert: WorkflowStalled
+        expr: increase(workflow_started_total[10m]) > 0
+              and increase(workflow_completed_total[10m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: workflow-service
+        annotations:
+          summary: "Workflow system stalled"
+          description: "Workflows started but none completed in 10 minutes."

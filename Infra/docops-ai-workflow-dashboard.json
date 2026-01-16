@@ -1,0 +1,58 @@
+{
+  "uid": "docops-workflow",
+  "title": "DocOps AI — Workflow Observability",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Workflows Started",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "workflow_started_total",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Workflows Failed",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "workflow_failed_total",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Steps Sent to DLQ",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "workflow_dlq_total",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Step Execution Duration (seconds)",
+      "gridPos": { "x": 0, "y": 4, "w": 18, "h": 8 },
+      "targets": [
+        {
+          "expr": "workflow_step_duration_seconds_sum / workflow_step_duration_seconds_count",
+          "legendFormat": "{{step}}",
+          "refId": "D"
+        }
+      ]
+    }
+  ],
+  "annotations": {
+    "list": []
+  }
+}

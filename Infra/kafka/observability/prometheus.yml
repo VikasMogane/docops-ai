@@ -13,3 +13,5 @@ scrape_configs:
     metrics_path: "/actuator/prometheus"
     static_configs:
       - targets: ["host.docker.internal:8090"]
+rule_files:
+  - "/etc/prometheus/alerts/*.yml"      
