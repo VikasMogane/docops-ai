@@ -1,0 +1,20 @@
+groups:
+- name: workflow-sla-alerts
+  rules:
+
+  - alert: WorkflowSLABreach
+    expr: workflow:success_rate:ratio < 0.995
+    for: 10m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Workflow SLA breached"
+      description: "Success rate below 99.5% for 10 minutes"
+
+  - alert: WorkflowLatencySLABreach
+    expr: workflow:latency_p95 > 10
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Workflow latency SLA breached"

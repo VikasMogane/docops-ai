@@ -4,6 +4,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 
+import com.docops.workflow.context.TenantContextHolder;
+
 @Component
 public class WorkflowMetrics {
 
@@ -13,18 +15,34 @@ public class WorkflowMetrics {
         this.registry = registry;
     }
 
+    
     public void workflowStarted() {
+        registry.counter(
+            "workflow_started_total",
+            "tenant", TenantContextHolder.getTenant()
+        ).increment();
+    }
+
+    public void workflowFailed() {
+        registry.counter(
+            "workflow_failed_total",
+            "tenant", TenantContextHolder.getTenant()
+        ).increment();
+    }
+    
+   /* public void workflowStarted() {
         registry.counter("workflow_started_total").increment();
     }
+    public void workflowFailed() {
+        registry.counter("workflow_failed_total").increment();
+    } */
+
 
     public void workflowCompleted() {
         registry.counter("workflow_completed_total").increment();
     }
 
-    public void workflowFailed() {
-        registry.counter("workflow_failed_total").increment();
-    }
-
+ 
     public Timer.Sample startWorkflowTimer() {
         return Timer.start(registry);
     }
