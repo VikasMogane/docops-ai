@@ -17,17 +17,17 @@ public class WorkflowMetrics {
 
     
     public void workflowStarted() {
-        registry.counter(
-            "workflow_started_total",
-            "tenant", TenantContextHolder.getTenant()
-        ).increment();
+    	  registry.counter(
+    		        "workflow_started_total",
+    		        "tenant", tenant()
+    		    ).increment();
     }
 
     public void workflowFailed() {
-        registry.counter(
-            "workflow_failed_total",
-            "tenant", TenantContextHolder.getTenant()
-        ).increment();
+    	  registry.counter(
+    		        "workflow_failed_total",
+    		        "tenant", tenant()
+    		    ).increment();
     }
     
    /* public void workflowStarted() {
@@ -53,5 +53,10 @@ public class WorkflowMetrics {
                 .publishPercentileHistogram()
                 .register(registry)
         );
+    }
+    private String tenant() {
+        return TenantContextHolder.getTenant() != null
+                ? TenantContextHolder.getTenant()
+                : "default";
     }
 }

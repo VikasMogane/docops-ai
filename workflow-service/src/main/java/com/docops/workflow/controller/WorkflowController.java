@@ -65,8 +65,8 @@ public class WorkflowController {
     
    // Post Request
     @PostMapping("/{documentId}")
-    public WorkflowInstance create(@PathVariable Long documentId) {
-        return orchestrator.createWorkflow(documentId);
+    public WorkflowInstance create(@PathVariable Long documentId,@RequestParam(defaultValue = "v1") String version) {
+        return orchestrator.createWorkflow(documentId,version);
     }
     
     

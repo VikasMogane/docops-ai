@@ -1,31 +1,33 @@
-package com.docops.workflow.domain.entity;
+package com.docops.workflow.outbox;
 
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "workflow_event")
+@Table(name = "workflow_outbox")
 @Getter @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class WorkflowEvent {
+public class WorkflowOutboxEvent {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "workflow_instance_id")
-    private WorkflowInstance workflowInstance;
+    private String aggregateType; // WORKFLOW
+    private Long aggregateId;     // workflowInstanceId
+    private String eventType;     // STEP_READY
 
-    private String eventType;
-
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String payload;
 
+    private boolean published = false;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

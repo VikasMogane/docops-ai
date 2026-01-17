@@ -7,6 +7,8 @@ import com.docops.workflow.dto.WorkflowViewResponse;
 import com.docops.workflow.kafka.DlqPublisher;
 import com.docops.workflow.messaging.WorkflowEventPublisher;
 import com.docops.workflow.repository.*;
+import com.docops.workflow.util.IdempotencyKeyGenerator;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,7 +44,7 @@ public class WorkflowOrchestratorService {
     // ================= CREATE =================
 
     @Transactional
-    public WorkflowInstance createWorkflow(Long documentId) {
+    public WorkflowInstance createWorkflow(Long documentId,String version) {
     	workflowMetrics.workflowStarted();
         log.info("Workflow created", "documentId={}", documentId);
     	
@@ -56,8 +58,8 @@ public class WorkflowOrchestratorService {
                 });
 
         WorkflowDefinition definition = workflowDefinitionRepository
-                .findByNameAndVersion("DOCOPS_AI", "v1")
-                .orElseThrow(() -> new RuntimeException("Workflow definition not found"));
+                .findByNameAndVersion("DOCOPS_AI", version)
+                .orElseThrow(() -> new RuntimeException("Workflow definition not found: " + version));
 
         WorkflowInstance instance = WorkflowInstance.builder()
                 .documentId(documentId)
@@ -69,16 +71,35 @@ public class WorkflowOrchestratorService {
         WorkflowInstance saved = instanceRepo.save(instance);
 
         // Initial step is already SUCCESS
+//        stepRepo.save(
+//                WorkflowStepExecution.builder()
+//                        .workflowInstance(saved)
+//                        .stepName(WorkflowStep.UPLOAD.name())
+//                        .status(StepStatus.SUCCESS)
+//                        .retryCount(0)
+//                        .startedAt(LocalDateTime.now())
+//                        .completedAt(LocalDateTime.now())
+//                        .build()
+//        );
+        
         stepRepo.save(
                 WorkflowStepExecution.builder()
-                        .workflowInstance(saved)
-                        .stepName(WorkflowStep.UPLOAD.name())
-                        .status(StepStatus.SUCCESS)
-                        .retryCount(0)
-                        .startedAt(LocalDateTime.now())
-                        .completedAt(LocalDateTime.now())
-                        .build()
-        );
+                    .workflowInstance(saved)
+                    .stepName(WorkflowStep.UPLOAD.name())
+                    .status(StepStatus.SUCCESS)
+                    .retryCount(0)
+                    .idempotencyKey(
+                        IdempotencyKeyGenerator.generate(
+                            saved.getId(),
+                            WorkflowStep.UPLOAD.name(),
+                            0
+                        )
+                    )
+                    .startedAt(LocalDateTime.now())
+                    .completedAt(LocalDateTime.now())
+                    .build()
+            );
+
 
         return saved;
     }
@@ -121,16 +142,34 @@ public class WorkflowOrchestratorService {
 
         log.info("Step started",  "documentId={}",  instance.getDocumentId(),"workflowInstanceId={}", instance.getId(), "step={}", next.name());
         
+        String idempotencyKey =
+        	    IdempotencyKeyGenerator.generate(
+        	        instance.getId(),
+        	        next.name(),
+        	        0
+        	    );
         // Insert next step as RUNNING
-        stepRepo.save(
-                WorkflowStepExecution.builder()
-                        .workflowInstance(instance)
-                        .stepName(next.name())
-                        .status(StepStatus.RUNNING)
-                        .retryCount(0)
-                        .startedAt(LocalDateTime.now())
-                        .build()
-        );
+        	stepRepo.save(
+        	    WorkflowStepExecution.builder()
+        	        .workflowInstance(instance)
+        	        .stepName(next.name())
+        	        .status(StepStatus.RUNNING)
+        	        .retryCount(0)
+        	        .idempotencyKey(idempotencyKey)
+        	        .startedAt(LocalDateTime.now())
+        	        .build()
+        	);
+        	
+      
+//        stepRepo.save(
+//                WorkflowStepExecution.builder()
+//                        .workflowInstance(instance)
+//                        .stepName(next.name())
+//                        .status(StepStatus.RUNNING)
+//                        .retryCount(0)
+//                        .startedAt(LocalDateTime.now())
+//                        .build()
+//        );
         
         eventPublisher.publishStepReady(
                 instance.getDocumentId(),
@@ -237,6 +276,15 @@ public class WorkflowOrchestratorService {
 
         instance.setStatus(WorkflowStatus.RUNNING);
         instanceRepo.save(instance);
+        
+        failedStep.setRetryCount(failedStep.getRetryCount() + 1);
+        failedStep.setIdempotencyKey(
+        	    IdempotencyKeyGenerator.generate(
+        	        instance.getId(),
+        	        failedStep.getStepName(),
+        	        failedStep.getRetryCount()
+        	    )
+        	);
         
      // 🔥 THIS IS THE KEY LINE
         eventPublisher.publishStepReady(

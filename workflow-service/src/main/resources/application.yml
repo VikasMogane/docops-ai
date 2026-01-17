@@ -22,6 +22,8 @@ spring:
     enabled: true
     schemas: workflow
     table: workflow_flyway_history
+    validate-on-migrate: true
+    baseline-on-migrate: false
     
 #  workflow:
  # base-url: http://localhost:${server.port}  

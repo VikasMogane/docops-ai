@@ -18,6 +18,9 @@ public class WorkflowStepExecution {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "idempotency_key", unique = true)
+    private String idempotencyKey;
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "workflow_instance_id", nullable = false)
     private WorkflowInstance workflowInstance;

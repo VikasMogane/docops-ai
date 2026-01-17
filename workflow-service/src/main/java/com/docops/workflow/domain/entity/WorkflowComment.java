@@ -25,5 +25,13 @@ public class WorkflowComment {
 
     private String comment;
 
-    private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+    
+    
+    @PrePersist
+    public void prePersist() {
+        this.createdAt = LocalDateTime.now();
+    }
 }

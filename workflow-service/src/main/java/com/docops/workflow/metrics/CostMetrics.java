@@ -14,9 +14,15 @@ public class CostMetrics {
     }
 
     public void workflowCost(double cost) {
-        registry.counter(
-            "workflow_cost_dollars_total",
-            "tenant", TenantContextHolder.getTenant()
-        ).increment(cost);
+    	 registry.counter(
+    		        "workflow_cost_dollars_total",
+    		        "tenant", tenant()
+    		    ).increment(cost);
+    }
+    
+    private String tenant() {
+        return TenantContextHolder.getTenant() != null
+                ? TenantContextHolder.getTenant()
+                : "default";
     }
 }
