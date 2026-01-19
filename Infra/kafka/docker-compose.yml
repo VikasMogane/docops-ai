@@ -48,3 +48,20 @@ services:
     depends_on:
       - prometheus
     restart: unless-stopped
+    
+
+  postgres:
+    image: postgres:15
+    container_name: docops-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: docops
+      POSTGRES_USER: docops
+      POSTGRES_PASSWORD: docops
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:
